@@ -57,7 +57,7 @@ func newController() *controller {
 	view = view.Funcs(
 		template.FuncMap{
 			"unix_to_time": func(u int64) time.Time {
-				return time.Unix(1622426197, 0).Local()
+				return time.Unix(u, 0).Local()
 			},
 		},
 	)
