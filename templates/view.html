@@ -16,8 +16,7 @@
 </head>
 
 <body>
-
-    <div class="container-fluid mx-0">
+    <div class="container-fluid mx-auto">
         <h2>Your Google JWT is below</h2>
         <div class="form-group row">
             <textarea id="copy-target" class="border border-info rounded text-secondary form-control-plaintext col-7" type="text"  readonly>{{ .IDToken }}</textarea>
@@ -27,6 +26,34 @@
             </button>
         </div>
         {{ .Payload }}
+        <div class="col-5">
+            <ul class="list-group">
+                <li class="list-group-item disabled">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">Email</h5>
+                      </div>
+                      <p class="mb-1">{{ .Claims.Email }} </p>
+                </li>
+                <li class="list-group-item disabled">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">Audience</h5>
+                      </div>
+                      <p class="mb-1">{{ .Claims.Audience }} </p>
+                </li>
+                <li class="list-group-item disabled">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">IssuedAt</h5>
+                      </div>
+                      <p class="mb-1">{{ .Claims.IssuedAt | unix_to_time }} </p>
+                </li>
+                <li class="list-group-item disabled">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">ExpiresAt</h5>
+                      </div>
+                      <p class="mb-1">{{ .Claims.ExpiresAt | unix_to_time }} </p>
+                </li>
+              </ul>
+        </div>
     </div>
     <script src="/static/js/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"></script>
     <script src="/static/js/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"></script>

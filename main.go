@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+
+	jwt "github.com/dgrijalva/jwt-go"
 )
 
 //go:embed static/*
@@ -51,7 +53,16 @@ type controller struct {
 }
 
 func newController() *controller {
-	view := template.Must(template.ParseFS(templateFS, "templates/view.html"))
+	view := template.New("view.html")
+	view = view.Funcs(
+		template.FuncMap{
+			"unix_to_time": func(u int64) time.Time {
+				return time.Unix(1622426197, 0).Local()
+			},
+		},
+	)
+	view = template.Must(view.ParseFS(templateFS, "templates/view.html"))
+
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint == "" {
 		endpoint = "http://localhost:8000"
@@ -153,6 +164,12 @@ func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, c.endpoint+"/view", http.StatusFound)
 }
 
+type customClaims struct {
+	Email      string `json:"email"`
+	EmailValid bool   `json:"email_valid"`
+	jwt.StandardClaims
+}
+
 func (c *controller) handleView(w http.ResponseWriter, r *http.Request) {
 	reqID := getRequestID(r.Context())
 	idTokenCookie, err := r.Cookie(idTokenCookieName)
@@ -165,8 +182,16 @@ func (c *controller) handleView(w http.ResponseWriter, r *http.Request) {
 	idTokenCookie.MaxAge = -1
 	http.SetCookie(w, idTokenCookie)
 
+	parser := &jwt.Parser{}
+	token, _, err := parser.ParseUnverified(idToken, &customClaims{})
+	if err != nil {
+		log.Printf("[error][%s] %s", reqID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	err = c.view.Execute(w, map[string]interface{}{
 		"IDToken": idToken,
+		"Claims":  token.Claims,
 	})
 	if err != nil {
 		log.Printf("[error][%s] %s", reqID, err)
