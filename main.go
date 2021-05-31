@@ -19,6 +19,9 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+//go:embed static/*
+var staticFS embed.FS
+
 func main() {
 	log.Println("[info] checking self IP address")
 	resp, err := http.Get("http://checkip.amazonaws.com/")
@@ -34,6 +37,7 @@ func main() {
 	router.HandleFunc("/", c.handleIndex).Methods(http.MethodGet)
 	router.HandleFunc("/oauth2/idpresponse", c.handleIDPResponse)
 	router.HandleFunc("/view", c.handleView).Methods(http.MethodGet)
+	router.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticFS))).Methods(http.MethodGet)
 	ridge.Run(":8000", "/", router)
 }
 
