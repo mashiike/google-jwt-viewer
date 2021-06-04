@@ -67,12 +67,25 @@ func newController() *controller {
 	if endpoint == "" {
 		endpoint = "http://localhost:8000"
 	}
+	log.Printf("[info] endpoint is %s\n", endpoint)
+
+	oauth2Endpoint := oauth2.Endpoint{
+		AuthURL:   os.Getenv("OAUTH2_AUTHORIZE_ENDPOINT"),
+		TokenURL:  os.Getenv("OAUTH2_TOKEN_ENDPOINT"),
+		AuthStyle: oauth2.AuthStyleAutoDetect,
+	}
+	if oauth2Endpoint.AuthURL == "" || oauth2Endpoint.TokenURL == "" {
+		log.Println("[info] use google authorization")
+		oauth2Endpoint = google.Endpoint
+	} else {
+		log.Println("[info] use custom authorization")
+	}
 	conf := &oauth2.Config{
 		ClientID:     os.Getenv("CLIENT_ID"),
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
 		Scopes:       []string{"openid", "email"},
 		RedirectURL:  fmt.Sprintf("%s/oauth2/idpresponse", endpoint),
-		Endpoint:     google.Endpoint,
+		Endpoint:     oauth2Endpoint,
 	}
 	return &controller{
 		conf:     conf,
