@@ -167,6 +167,7 @@ func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
 type customClaims struct {
 	Email      string `json:"email"`
 	EmailValid bool   `json:"email_valid"`
+	Nonce      string `json:"nonce"`
 	jwt.StandardClaims
 }
 
