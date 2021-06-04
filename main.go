@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fujiwara/ridge"
@@ -33,7 +35,10 @@ func main() {
 		io.Copy(os.Stderr, resp.Body)
 		resp.Body.Close()
 	}
-	c := newController()
+	c, err := newController()
+	if err != nil {
+		log.Fatalln(err)
+	}
 	router := mux.NewRouter()
 	router.Use(accessLogginMiddleware)
 	router.HandleFunc("/", c.handleIndex).Methods(http.MethodGet)
@@ -49,19 +54,34 @@ var templateFS embed.FS
 type controller struct {
 	conf     *oauth2.Config
 	endpoint string
-	view     *template.Template
+	views    map[string]*template.Template
 }
 
-func newController() *controller {
-	view := template.New("view.html")
-	view = view.Funcs(
-		template.FuncMap{
-			"unix_to_time": func(u int64) time.Time {
-				return time.Unix(u, 0).Local()
-			},
+func newController() (*controller, error) {
+	funcMap := template.FuncMap{
+		"unix_to_time": func(u int64) time.Time {
+			return time.Unix(u, 0).Local()
 		},
-	)
-	view = template.Must(view.ParseFS(templateFS, "templates/view.html"))
+	}
+	entries, err := templateFS.ReadDir("templates")
+	if err != nil {
+		return nil, err
+	}
+	views := make(map[string]*template.Template, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".html") {
+			continue
+		}
+		log.Printf("[debug] try read templates/%s ...", name)
+		view := template.New(entry.Name())
+		view = view.Funcs(funcMap)
+		view = template.Must(view.ParseFS(templateFS, filepath.Join("templates", name)))
+		views[name] = view
+	}
 
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint == "" {
@@ -90,8 +110,8 @@ func newController() *controller {
 	return &controller{
 		conf:     conf,
 		endpoint: endpoint,
-		view:     view,
-	}
+		views:    views,
+	}, nil
 }
 
 const (
@@ -184,6 +204,22 @@ type customClaims struct {
 	jwt.StandardClaims
 }
 
+func (c *controller) writeView(w http.ResponseWriter, r *http.Request, viewName string, data interface{}) {
+	reqID := getRequestID(r.Context())
+	view, ok := c.views[viewName]
+	if !ok {
+		log.Printf("[error] view `%s` not found.\n", viewName)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if err := view.Execute(w, data); err != nil {
+		log.Printf("[error][%s] %s", reqID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (c *controller) handleView(w http.ResponseWriter, r *http.Request) {
 	reqID := getRequestID(r.Context())
 	idTokenCookie, err := r.Cookie(idTokenCookieName)
@@ -203,15 +239,12 @@ func (c *controller) handleView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	err = c.view.Execute(w, map[string]interface{}{
-		"IDToken": idToken,
-		"Claims":  token.Claims,
-	})
-	if err != nil {
-		log.Printf("[error][%s] %s", reqID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
+	c.writeView(w, r, "view.html",
+		map[string]interface{}{
+			"IDToken": idToken,
+			"Claims":  token.Claims,
+		},
+	)
 }
 
 type contextKey string
