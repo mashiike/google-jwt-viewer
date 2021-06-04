@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="stylesheet" href="/static/css/bootstrap.min.css"  type="text/css"
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" type="text/css"
         integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T">
 
     <title>google-jwt-vieiwer</title>
@@ -18,46 +18,58 @@
 <body>
     <div class="container-fluid mx-auto">
         <h2>Your Google JWT is below</h2>
-        <div class="form-group row">
-            <textarea id="copy-target" class="border border-info rounded text-secondary form-control-plaintext col-7" type="text"  readonly>{{ .IDToken }}</textarea>
-            <button id="copy-input" class="copy-btn bg-white border border-secondary rounded" data-toggle="tooltip">
-                Copy
-                <i class="fas fa-clipboard"></i>
-            </button>
+
+        <button class="btn btn-primary border border-secondary rounded" type="button" data-toggle="collapse" data-target="#collapseJWT"
+            aria-expanded="false" aria-controls="collapseExample">
+            Show JWT
+        </button>
+        <div class="collapse form-group" id="collapseJWT">
+            <div class="card card-body">
+                <textarea id="copy-target"
+                    class="border border-info rounded text-secondary form-control-plaintext col-7" type="text"
+                    readonly>{{ .IDToken }}</textarea>
+            </div>
         </div>
+        <button id="copy-input" class="copy-btn btn bg-white border border-secondary rounded" data-toggle="tooltip">
+            Copy JWT
+            <i class="fas fa-clipboard"></i>
+        </button>
         {{ .Payload }}
         <div class="col-5">
             <ul class="list-group">
                 <li class="list-group-item disabled">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">Email</h5>
-                      </div>
-                      <p class="mb-1">{{ .Claims.Email }} </p>
+                    </div>
+                    <p class="mb-1">{{ .Claims.Email }} </p>
                 </li>
                 <li class="list-group-item disabled">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">Audience</h5>
-                      </div>
-                      <p class="mb-1">{{ .Claims.Audience }} </p>
+                    </div>
+                    <p class="mb-1">{{ .Claims.Audience }} </p>
                 </li>
                 <li class="list-group-item disabled">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">IssuedAt</h5>
-                      </div>
-                      <p class="mb-1">{{ .Claims.IssuedAt | unix_to_time }} </p>
+                    </div>
+                    <p class="mb-1">{{ .Claims.IssuedAt | unix_to_time }} </p>
                 </li>
                 <li class="list-group-item disabled">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">ExpiresAt</h5>
-                      </div>
-                      <p class="mb-1">{{ .Claims.ExpiresAt | unix_to_time }} </p>
+                    </div>
+                    <p class="mb-1">{{ .Claims.ExpiresAt | unix_to_time }} </p>
                 </li>
-              </ul>
+            </ul>
         </div>
     </div>
-    <script src="/static/js/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"></script>
-    <script src="/static/js/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"></script>
-    <script src="/static/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"></script>
+    <script src="/static/js/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"></script>
+    <script src="/static/js/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"></script>
+    <script src="/static/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"></script>
     <script>
         //from https://mo22comi.com/2021/01/10/bootstrap-copy-and-tooltip/
         $('#copy-input')
@@ -80,6 +92,7 @@
                 }
                 $(this).tooltip('show');
             });
-        </script>
-    </body>
+    </script>
+</body>
+
 </html>
