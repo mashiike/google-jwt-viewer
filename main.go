@@ -52,9 +52,12 @@ func main() {
 var templateFS embed.FS
 
 type controller struct {
-	conf     *oauth2.Config
-	endpoint string
-	views    map[string]*template.Template
+	endpoint     string
+	views        map[string]*template.Template
+	authURL      string
+	tokenURL     string
+	clientID     string
+	clientSecret string
 }
 
 func newController() (*controller, error) {
@@ -83,34 +86,13 @@ func newController() (*controller, error) {
 		views[name] = view
 	}
 
-	endpoint := os.Getenv("ENDPOINT")
-	if endpoint == "" {
-		endpoint = "http://localhost:8000"
-	}
-	log.Printf("[info] endpoint is %s\n", endpoint)
-
-	oauth2Endpoint := oauth2.Endpoint{
-		AuthURL:   os.Getenv("OAUTH2_AUTHORIZE_ENDPOINT"),
-		TokenURL:  os.Getenv("OAUTH2_TOKEN_ENDPOINT"),
-		AuthStyle: oauth2.AuthStyleAutoDetect,
-	}
-	if oauth2Endpoint.AuthURL == "" || oauth2Endpoint.TokenURL == "" {
-		log.Println("[info] use google authorization")
-		oauth2Endpoint = google.Endpoint
-	} else {
-		log.Println("[info] use custom authorization")
-	}
-	conf := &oauth2.Config{
-		ClientID:     os.Getenv("CLIENT_ID"),
-		ClientSecret: os.Getenv("CLIENT_SECRET"),
-		Scopes:       []string{"openid", "email"},
-		RedirectURL:  fmt.Sprintf("%s/oauth2/idpresponse", endpoint),
-		Endpoint:     oauth2Endpoint,
-	}
 	return &controller{
-		conf:     conf,
-		endpoint: endpoint,
-		views:    views,
+		views:        views,
+		endpoint:     os.Getenv("ENDPOINT"),
+		authURL:      os.Getenv("OAUTH2_AUTHORIZE_ENDPOINT"),
+		tokenURL:     os.Getenv("OAUTH2_TOKEN_ENDPOINT"),
+		clientID:     os.Getenv("CLIENT_ID"),
+		clientSecret: os.Getenv("CLIENT_SECRET"),
 	}, nil
 }
 
@@ -133,8 +115,8 @@ func (c *controller) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	auchCodeURL := c.conf.AuthCodeURL(
-		c.getState(securityToken),
+	auchCodeURL := c.newOAuthConfig(r).AuthCodeURL(
+		c.getState(r, securityToken),
 		oauth2.SetAuthURLParam("nonce", nonce),
 		oauth2.SetAuthURLParam("prompt", "login"),
 	)
@@ -147,11 +129,50 @@ func (c *controller) handleIndex(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, auchCodeURL, http.StatusFound)
 }
 
-func (c *controller) getState(securityToken string) string {
+func (c *controller) getState(r *http.Request, securityToken string) string {
 	return url.Values{
 		"security_token": []string{securityToken},
-		"url":            []string{c.endpoint},
+		"url":            []string{c.getEndpoint(r)},
 	}.Encode()
+}
+
+func (c *controller) newOAuthConfig(r *http.Request) *oauth2.Config {
+	var oauth2Endpoint oauth2.Endpoint
+	if c.authURL == "" || c.tokenURL == "" {
+		log.Println("[debug] use google authorization")
+		oauth2Endpoint = google.Endpoint
+	} else {
+		log.Println("[debug] use custom authorization")
+		oauth2Endpoint = oauth2.Endpoint{
+			AuthURL:   c.authURL,
+			TokenURL:  c.tokenURL,
+			AuthStyle: oauth2.AuthStyleAutoDetect,
+		}
+	}
+	return &oauth2.Config{
+		ClientID:     c.clientID,
+		ClientSecret: c.clientSecret,
+		Scopes:       []string{"openid", "email"},
+		RedirectURL:  fmt.Sprintf("%s/oauth2/idpresponse", c.getEndpoint(r)),
+		Endpoint:     oauth2Endpoint,
+	}
+}
+
+func (c *controller) getEndpoint(r *http.Request) string {
+	if c.endpoint != "" {
+		return c.endpoint
+	}
+	if r != nil {
+		host := r.Host
+		if strings.HasPrefix(host, "localhost") {
+			c.endpoint = fmt.Sprintf("http://%s", host)
+		} else {
+			c.endpoint = fmt.Sprintf("https://%s", host)
+		}
+		log.Println("[debug] endpoint = ", c.endpoint)
+		return c.endpoint
+	}
+	return "http://localhost:8000"
 }
 
 func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +186,7 @@ func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
 	securityToken := securityTokenCookie.Value
 	securityTokenCookie.MaxAge = -1
 	http.SetCookie(w, securityTokenCookie)
-	if r.URL.Query().Get("state") != c.getState(securityToken) {
+	if r.URL.Query().Get("state") != c.getState(r, securityToken) {
 		log.Printf("[error][%s] state mismatch", reqID)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
@@ -176,7 +197,7 @@ func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	tok, err := c.conf.Exchange(r.Context(), code)
+	tok, err := c.newOAuthConfig(r).Exchange(r.Context(), code)
 	if err != nil {
 		log.Printf("[error][%s] %s", reqID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -194,7 +215,7 @@ func (c *controller) handleIDPResponse(w http.ResponseWriter, r *http.Request) {
 		Path:    "/",
 		Expires: time.Now().Add(60 * time.Minute),
 	})
-	http.Redirect(w, r, c.endpoint+"/view", http.StatusFound)
+	http.Redirect(w, r, c.getEndpoint(r)+"/view", http.StatusFound)
 }
 
 type customClaims struct {
@@ -225,7 +246,7 @@ func (c *controller) handleView(w http.ResponseWriter, r *http.Request) {
 	idTokenCookie, err := r.Cookie(idTokenCookieName)
 	if err != nil {
 		log.Printf("[info][%s] Cookie %s can not get and redirect index for login: %s", reqID, idTokenCookieName, err.Error())
-		http.Redirect(w, r, c.endpoint, http.StatusFound)
+		http.Redirect(w, r, c.getEndpoint(r), http.StatusFound)
 		return
 	}
 	idToken := idTokenCookie.Value
